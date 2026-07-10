@@ -279,8 +279,8 @@ class CI_Order_Fields {
 	/**
 	 * Calculate declared value.
 	 *
-	 * Defaults to the order total. Override via the `ci_calculated_declared_value`
-	 * filter.
+	 * Defaults to the goods value (subtotal after discounts). Override via the
+	 * `ci_calculated_declared_value` filter.
 	 *
 	 * @param WC_Order $order Order object.
 	 * @return float

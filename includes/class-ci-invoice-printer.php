@@ -182,7 +182,7 @@ class CI_Invoice_Printer {
 		</div>
 
 		<header class="ci-invoice-header">
-			<h1>Commercial invoice - order #<?php esc_html( $order->get_order_number() ); ?></h1>
+			<h1>Commercial invoice - order #<?php echo esc_html( $order->get_order_number() ); ?></h1>
 			<?php
 			printf(
 				'<h4 class="ci-invoice-date">Date created: %s</h4>',
