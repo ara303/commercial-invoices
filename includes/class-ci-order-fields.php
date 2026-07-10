@@ -286,7 +286,7 @@ class CI_Order_Fields {
 	 * @return float
 	 */
 	public function calculate_declared_value( $order ) {
-		$declared_value = $order->get_total();
+		$declared_value = $order->get_subtotal() - $order->get_discount_total();
 
 		return (float) apply_filters( 'ci_calculated_declared_value', wc_format_decimal( $declared_value ), $order );
 	}
