@@ -60,29 +60,10 @@ class CI_Order_Fields {
 	}
 
 	/**
-	 * Get the current order object from the edit screen globals.
-	 *
-	 * @return WC_Order|false
-	 */
-	private function get_current_order() {
-		global $theorder, $post;
-
-		if ( is_a( $theorder, 'WC_Order' ) ) {
-			return $theorder;
-		}
-
-		if ( ! empty( $post ) ) {
-			return wc_get_order( $post );
-		}
-
-		return false;
-	}
-
-	/**
 	 * Render the meta box.
 	 */
 	public function render_meta_box() {
-		$order = $this->get_current_order();
+		$order = Commercial_Invoices::get_current_order();
 
 		if ( ! $order ) {
 			echo '<p>' . esc_html__( 'Order not found.', 'commercial-invoices' ) . '</p>';
@@ -241,15 +222,16 @@ class CI_Order_Fields {
 		$net_weight = 0;
 
 		foreach ( $order->get_items() as $item ) {
-			$product = $item->get_product();
-			if ( ! $product ) {
+			if( ! $item instanceof WC_Order_Item_Product ){
 				continue;
 			}
 
-			$unit_weight = (float) $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
+			// If unset, cast '' to 0.
+			$unit_weight = (float) $item->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
 
-			// Fall back to the standard WooCommerce shipping weight.
-			if ( empty( $unit_weight ) ) {
+			// If not set in postmeta above, use WC standard 'Weight' field.
+			if ( $unit_weight === 0 ) {
+				$product     = $item->get_product();
 				$unit_weight = (float) $product->get_weight();
 			}
 

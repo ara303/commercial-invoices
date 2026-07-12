@@ -43,29 +43,10 @@ class CI_Invoice_Printer {
 	}
 
 	/**
-	 * Get the current order object from the edit screen globals.
-	 *
-	 * @return WC_Order|false
-	 */
-	private function get_current_order() {
-		global $theorder, $post;
-
-		if ( is_a( $theorder, 'WC_Order' ) ) {
-			return $theorder;
-		}
-
-		if ( ! empty( $post ) ) {
-			return wc_get_order( $post );
-		}
-
-		return false;
-	}
-
-	/**
 	 * Render the print actions meta box.
 	 */
 	public function render_print_meta_box() {
-		$order = $this->get_current_order();
+		$order = Commercial_Invoices::get_current_order();
 
 		if ( ! $order ) {
 			echo '<p>' . esc_html__( 'Order not found.', 'commercial-invoices' ) . '</p>';
@@ -78,13 +59,9 @@ class CI_Invoice_Printer {
 				target="_blank"
 				class="button button-primary"
 				style="width:100%;text-align:center;"
-			>
-				<?php esc_html_e( 'Print Commercial Invoice', 'commercial-invoices' ); ?>
-			</a>
+			>Print commercial invoice</a>
 		</p>
-		<p class="description">
-			<?php esc_html_e( 'Opens a printable commercial invoice in a new tab.', 'commercial-invoices' ); ?>
-		</p>
+		<p class="description"><b>Save changes</b> to the order (use the blue <em>Update</em> button to the right) in order for the invoice to be filled with the most up-to-date data.</p>
 		<?php
 	}
 
@@ -176,9 +153,7 @@ class CI_Invoice_Printer {
 <body>
 	<div class="ci-invoice-wrap">
 		<div class="no-print">
-			<button class="button" onclick="window.print();">
-				<?php esc_html_e( 'Print Invoice', 'commercial-invoices' ); ?>
-			</button>
+			<button class="button" onclick="window.print();">Print</button>
 		</div>
 
 		<header class="ci-invoice-header">
@@ -193,11 +168,11 @@ class CI_Invoice_Printer {
 
 		<section class="ci-addresses">
 			<div class="ci-address-box">
-				<h2><?php esc_html_e( 'Exporter / Shipper', 'commercial-invoices' ); ?></h2>
+				<h2>Exporter (Sender)</h2>
 				<?php echo wp_kses_post( $store_address ); ?>
 			</div>
 			<div class="ci-address-box">
-				<h2><?php esc_html_e( 'Consignee', 'commercial-invoices' ); ?></h2>
+				<h2>Consignee (Recipient)</h2>
 				<?php echo wp_kses_post( $shipping_address ); ?>
 			</div>
 		</section>
@@ -233,16 +208,15 @@ class CI_Invoice_Printer {
 			<table>
 				<thead>
 					<tr>
-						<th>#</th>
-						<th><?php esc_html_e( 'Description', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Qty', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Name', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Country of Origin', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Qty', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Value', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Unit Weight (kg)', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Net Weight (kg)', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Gross Weight (kg)', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Unit Value', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Total Value', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Line Value', 'commercial-invoices' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -252,14 +226,14 @@ class CI_Invoice_Printer {
 					$running_gross = 0;
 
 					foreach ( $order->get_items() as $item ) {
-						$product = $item->get_product();
-						if ( ! $product ) {
+						if ( ! $item instanceof WC_Order_Item_Product ) {
 							continue;
 						}
 
+						$product      = $item->get_product();
 						$qty          = (float) $item->get_quantity();
 						$unit_weight  = (float) $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
-						if ( empty( $unit_weight ) ) {
+						if ( $unit_weight === 0 ) {
 							$unit_weight = (float) $product->get_weight();
 						}
 						$item_net     = $unit_weight * $qty;
@@ -274,15 +248,14 @@ class CI_Invoice_Printer {
 						$running_gross += $item_gross;
 						?>
 						<tr>
-							<td><?php echo esc_html( $row ); ?></td>
+							<td><?php echo esc_html( wc_format_decimal( $qty ) ); ?></td>
 							<td><?php echo esc_html( $item->get_name() ); ?></td>
 							<td><?php echo esc_html( $country ); ?></td>
 							<td><?php echo esc_html( $hs_code ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $qty ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $unit_weight, 3 ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $item_net, 3 ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $item_gross, 3 ) ); ?></td>
 							<td><?php echo wp_kses_post( wc_price( $unit_price, array( 'currency' => $currency ) ) ); ?></td>
+							<td><?php echo esc_html( wc_format_decimal( $unit_weight, 2 ) ); ?></td>
+							<td><?php echo esc_html( wc_format_decimal( $item_net, 2 ) ); ?></td>
+							<td><?php echo esc_html( wc_format_decimal( $item_gross, 2 ) ); ?></td>
 							<td><?php echo wp_kses_post( wc_price( $line_total, array( 'currency' => $currency ) ) ); ?></td>
 						</tr>
 						<?php
@@ -292,11 +265,10 @@ class CI_Invoice_Printer {
 				</tbody>
 				<tfoot>
 					<tr>
-						<th colspan="4"><?php esc_html_e( 'Totals', 'commercial-invoices' ); ?></th>
 						<th><?php echo esc_html( wc_format_decimal( $total_quantity ) ); ?></th>
-						<th>&nbsp;</th>
-						<th><?php echo esc_html( wc_format_decimal( $running_net, 3 ) ); ?> kg</th>
-						<th><?php echo esc_html( wc_format_decimal( $running_gross, 3 ) ); ?> kg</th>
+						<th colspan="4">&nbsp;</th>
+						<th><?php echo esc_html( wc_format_decimal( $running_net, 2 ) ); ?> kg</th>
+						<th><?php echo esc_html( wc_format_decimal( $running_gross, 2 ) ); ?> kg</th>
 						<th>&nbsp;</th>
 						<th><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></th>
 					</tr>

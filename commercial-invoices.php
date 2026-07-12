@@ -119,6 +119,25 @@ class Commercial_Invoices {
 			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', COMMERCIAL_INVOICES_PLUGIN_FILE, true );
 		}
 	}
+
+	/**
+	 * Get the current order object from the edit screen globals.
+	 *
+	 * @return WC_Order|false
+	 */
+	public static function get_current_order() {
+		global $theorder, $post;
+
+		if ( is_a( $theorder, 'WC_Order' ) ) {
+			return $theorder;
+		}
+
+		if ( ! empty( $post ) ) {
+			return wc_get_order( $post );
+		}
+
+		return false;
+	}
 }
 
 Commercial_Invoices::get_instance();
