@@ -225,14 +225,14 @@ class CI_Order_Fields {
 			if( ! $item instanceof WC_Order_Item_Product ){
 				continue;
 			}
-
-			// If unset, cast '' to 0.
-			$unit_weight = (float) $item->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
-
-			// If not set in postmeta above, use WC standard 'Weight' field.
-			if ( $unit_weight === 0 ) {
+			
+			// Prefer 'Per-Unit Weight' meta, fallback to WC weight, then cast to float.
+			$unit_weight = $item->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
+			if( $unit_weight === '' ){
 				$product     = $item->get_product();
 				$unit_weight = (float) $product->get_weight();
+			} else {
+				$unit_weight = (float) $unit_weight;
 			}
 
 			$quantity     = (float) $item->get_quantity();

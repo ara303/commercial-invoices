@@ -61,8 +61,8 @@ class CI_Product_Fields {
 	}
 
 	public function save_quick_edit_fields( $post_id, $post ){
-		if( ! empty( $_REQUEST['_country_of_origin'] ) ){
-			$country = sanitize_text_field( $_REQUEST['_country_of_origin'] );
+		if( ! empty( $_POST['_country_of_origin'] ) ){
+			$country = sanitize_text_field( $_POST['_country_of_origin'] );
 			
 			update_post_meta( $post_id, self::COUNTRY_META_KEY, $country );
 		}

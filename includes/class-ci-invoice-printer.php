@@ -232,10 +232,15 @@ class CI_Invoice_Printer {
 
 						$product      = $item->get_product();
 						$qty          = (float) $item->get_quantity();
-						$unit_weight  = (float) $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
-						if ( $unit_weight === 0 ) {
+
+						// Prefer 'Per-Unit Weight' meta, fallback to WC weight, then cast to float.
+						$unit_weight = $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
+						if ( $unit_weight === '' ) {
 							$unit_weight = (float) $product->get_weight();
+						} else {
+							$unit_weight = (float) $unit_weight;
 						}
+
 						$item_net     = $unit_weight * $qty;
 						// Apply same gross-weight ratio used at order level.
 						$gross_ratio  = $gross_weight > 0 && $net_weight > 0 ? $gross_weight / $net_weight : 1;
