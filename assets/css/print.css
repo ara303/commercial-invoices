@@ -17,7 +17,6 @@ body {
 .ci-invoice-wrap {
 	max-width: 210mm;
 	margin: 0 auto;
-	padding: 20px;
 }
 
 .no-print {
@@ -85,35 +84,30 @@ body {
 	margin-bottom: 15px;
 }
 
-.ci-summary table,
-.ci-items table {
+.ci-summary th {
+	width: 150px;
+}
+
+table {
 	width: 100%;
 	border-collapse: collapse;
 	margin-bottom: 15px;
 }
 
-.ci-summary th,
-.ci-summary td,
-.ci-items th,
-.ci-items td {
+table th,
+table td {
 	border: 1px solid #000;
 	padding: 8px;
 	text-align: left;
 }
 
-.ci-summary th,
-.ci-items th {
+table th {
 	background: #f2f2f2;
 	font-weight: bold;
 }
 
-.ci-items th,
-.ci-items td {
-	font-size: 11px;
-}
-
-.ci-items tfoot th,
-.ci-items tfoot td {
+tfoot th,
+tfoot td {
 	font-weight: bold;
 	background: #f9f9f9;
 }

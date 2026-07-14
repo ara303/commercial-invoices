@@ -38,7 +38,6 @@ class CI_Product_Fields {
 
 		// Bulk edit support.
 		add_action( 'woocommerce_product_bulk_edit_start', array( $this, 'render_quick_edit_fields' ) );
-		// woocommerce_product_bulk_and_quick_edit
 
 		// Hidden list-table column that carries the meta value into the row's DOM so quick edit can read it.
 		add_filter( 'manage_product_posts_columns', array( $this, 'add_inline_column' ), 20 );
@@ -62,7 +61,7 @@ class CI_Product_Fields {
 
 	public function save_quick_edit_fields( $post_id, $post ){
 		if( ! empty( $_POST['_country_of_origin'] ) ){
-			$country = sanitize_text_field( $_POST['_country_of_origin'] );
+			$country = sanitize_text_field( wp_unslash( $_POST['_country_of_origin'] ) );
 			
 			update_post_meta( $post_id, self::COUNTRY_META_KEY, $country );
 		}

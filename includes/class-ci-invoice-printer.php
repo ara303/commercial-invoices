@@ -160,7 +160,7 @@ class CI_Invoice_Printer {
 			<h1>Commercial invoice - order #<?php echo esc_html( $order->get_order_number() ); ?></h1>
 			<?php
 			printf(
-				'<h4 class="ci-invoice-date">Date created: %s</h4>',
+				'<h4 class="ci-invoice-date">Date of issue: %s</h4>',
 				esc_html( wc_format_datetime( $order->get_date_created() ) )
 			);
 			?>
@@ -168,54 +168,50 @@ class CI_Invoice_Printer {
 
 		<section class="ci-addresses">
 			<div class="ci-address-box">
-				<h2>Exporter (Sender)</h2>
+				<h2>Exporter / Shipper</h2>
 				<?php echo wp_kses_post( $store_address ); ?>
 			</div>
 			<div class="ci-address-box">
-				<h2>Consignee (Recipient)</h2>
+				<h2>Consignee / Importer</h2>
 				<?php echo wp_kses_post( $shipping_address ); ?>
 			</div>
 		</section>
 
-		<section class="ci-summary">
-			<table>
-				<tbody>
-					<tr>
-						<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
-						<td><?php echo esc_html( $hs_code ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Total Quantity', 'commercial-invoices' ); ?></th>
-						<td><?php echo esc_html( $total_quantity ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Total Net Weight', 'commercial-invoices' ); ?></th>
-						<td><?php echo esc_html( wc_format_decimal( $net_weight, 3 ) ); ?> kg</td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Total Gross Weight', 'commercial-invoices' ); ?></th>
-						<td><?php echo esc_html( wc_format_decimal( $gross_weight, 3 ) ); ?> kg</td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Declared Value', 'commercial-invoices' ); ?></th>
-						<td><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></td>
-					</tr>
-				</tbody>
-			</table>
-		</section>
+		<table class="ci-summary">
+			<!-- <tr>
+				<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
+				<td><?php echo esc_html( $hs_code ); ?></td>
+			</tr> -->
+			<tr>
+				<th><?php esc_html_e( 'Total Quantity', 'commercial-invoices' ); ?></th>
+				<td><?php echo esc_html( $total_quantity ); ?></td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Total Net Weight', 'commercial-invoices' ); ?></th>
+				<td><?php echo esc_html( wc_format_decimal( $net_weight, 3 ) ); ?> kg</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Total Gross Weight', 'commercial-invoices' ); ?></th>
+				<td><?php echo esc_html( wc_format_decimal( $gross_weight, 3 ) ); ?> kg</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Total Value', 'commercial-invoices' ); ?></th>
+				<td><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></td>
+			</tr>
+		</table>
 
 		<section class="ci-items">
 			<table>
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Qty', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Name', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Description', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Country of Origin', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Value', 'commercial-invoices' ); ?></th>
+						<th><?php esc_html_e( 'Unit Value', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Unit Weight (kg)', 'commercial-invoices' ); ?></th>
 						<th><?php esc_html_e( 'Net Weight (kg)', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Gross Weight (kg)', 'commercial-invoices' ); ?></th>
+						<!-- <th><?php esc_html_e( 'Gross Weight (kg)', 'commercial-invoices' ); ?></th> -->
 						<th><?php esc_html_e( 'Line Value', 'commercial-invoices' ); ?></th>
 					</tr>
 				</thead>
@@ -260,7 +256,7 @@ class CI_Invoice_Printer {
 							<td><?php echo wp_kses_post( wc_price( $unit_price, array( 'currency' => $currency ) ) ); ?></td>
 							<td><?php echo esc_html( wc_format_decimal( $unit_weight, 2 ) ); ?></td>
 							<td><?php echo esc_html( wc_format_decimal( $item_net, 2 ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $item_gross, 2 ) ); ?></td>
+							<!-- <td><?php echo esc_html( wc_format_decimal( $item_gross, 2 ) ); ?></td> -->
 							<td><?php echo wp_kses_post( wc_price( $line_total, array( 'currency' => $currency ) ) ); ?></td>
 						</tr>
 						<?php
@@ -271,10 +267,8 @@ class CI_Invoice_Printer {
 				<tfoot>
 					<tr>
 						<th><?php echo esc_html( wc_format_decimal( $total_quantity ) ); ?></th>
-						<th colspan="4">&nbsp;</th>
-						<th><?php echo esc_html( wc_format_decimal( $running_net, 2 ) ); ?> kg</th>
+						<th colspan="5">&nbsp;</th>
 						<th><?php echo esc_html( wc_format_decimal( $running_gross, 2 ) ); ?> kg</th>
-						<th>&nbsp;</th>
 						<th><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></th>
 					</tr>
 				</tfoot>

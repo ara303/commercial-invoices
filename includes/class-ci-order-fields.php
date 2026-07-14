@@ -226,10 +226,12 @@ class CI_Order_Fields {
 				continue;
 			}
 			
-			// Prefer 'Per-Unit Weight' meta, fallback to WC weight, then cast to float.
-			$unit_weight = $item->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
+			$product = $item->get_product();
+			if( ! $product ){
+				continue;
+			}
+			$unit_weight = $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
 			if( $unit_weight === '' ){
-				$product     = $item->get_product();
 				$unit_weight = (float) $product->get_weight();
 			} else {
 				$unit_weight = (float) $unit_weight;
