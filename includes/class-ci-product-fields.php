@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Adds and saves the Country of Origin and commercial-invoice Weight fields on products.
+ * Adds and saves the Country of Origin and HS Code fields on products.
  */
 class CI_Product_Fields {
 
@@ -18,7 +18,7 @@ class CI_Product_Fields {
 	 * Meta keys.
 	 */
 	const COUNTRY_META_KEY = '_ci_country_of_origin';
-	const WEIGHT_META_KEY  = '_ci_unit_weight';
+	const HSCODE_META_KEY  = '_ci_hs_code';
 
 	/**
 	 * Constructor.
@@ -54,16 +54,28 @@ class CI_Product_Fields {
 					<input type="text" name="_country_of_origin" class="text country_of_origin" placeholder="e.g., China" value="">
 				</span>
 			</label>
+			<label>
+				<span class="title">HS Code</span>
+				<span class="input-text-wrap">
+					<input type="text" name="_hs_code" class="text hs_code" placeholder="e.g., 08081000" value="">
+				</span>
+			</label>
 			<br class="clear" />
 		</div>
 		<?php
 	}
 
 	public function save_quick_edit_fields( $post_id, $post ){
-		if( ! empty( $_POST['_country_of_origin'] ) ){
-			$country = sanitize_text_field( wp_unslash( $_POST['_country_of_origin'] ) );
+		if( ! empty( $_REQUEST['_country_of_origin'] ) ){
+			$country = sanitize_text_field( wp_unslash( $_REQUEST['_country_of_origin'] ) );
 			
 			update_post_meta( $post_id, self::COUNTRY_META_KEY, $country );
+		}
+
+		if( ! empty( $_REQUEST['_hs_code'] ) ){
+			$hs_code = sanitize_text_field( wp_unslash( $_REQUEST['_hs_code'] ) );
+			
+			update_post_meta( $post_id, self::HSCODE_META_KEY, $hs_code );
 		}
 	}
 
@@ -90,10 +102,14 @@ class CI_Product_Fields {
 						return;
 					}
 
-					// Read the stored value from the hidden list-table column on this row.
-					var value = $( '#post-' + post_id ).find( '.column-_ci_country_inline' ).text();
-					if ( value ) {
-						$( '.inline-edit-row input[name="_country_of_origin"]' ).val( value );
+					var countryValue = $( '#post-' + post_id ).find( '.column-_ci_country_inline' ).text();
+					if ( countryValue ) {
+						$( '.inline-edit-row input[name="_country_of_origin"]' ).val( countryValue );
+					}
+
+					var hscodeValue = $( '#post-' + post_id ).find( '.column-_ci_hs_code_inline' ).text();
+					if ( hscodeValue ) {
+						$( '.inline-edit-row input[name="_hs_code"]' ).val( hscodeValue );
 					}
 				};
 			});
@@ -108,7 +124,8 @@ class CI_Product_Fields {
 	 * @return array
 	 */
 	public function add_inline_column( $columns ) {
-		$columns['_ci_country_inline'] = __( 'Country of Origin', 'commercial-invoices' );
+		$columns['_ci_country_inline'] = 'Country of Origin';
+		$columns['_ci_hs_code_inline'] = 'HS Code';
 		return $columns;
 	}
 
@@ -122,6 +139,10 @@ class CI_Product_Fields {
 		if ( '_ci_country_inline' === $column ) {
 			echo esc_html( get_post_meta( $post_id, self::COUNTRY_META_KEY, true ) );
 		}
+
+		if ( '_ci_hs_code_inline' === $column ) {
+			echo esc_html( get_post_meta( $post_id, self::HSCODE_META_KEY, true ) );
+		}
 	}
 
 	/**
@@ -130,18 +151,18 @@ class CI_Product_Fields {
 	public function hide_inline_column() {
 		$screen = get_current_screen();
 		if ( $screen && 'edit-product' === $screen->id ) {
-			echo '<style>th.column-_ci_country_inline, td.column-_ci_country_inline{display:none !important;}</style>';
+			echo '<style>th.column-_ci_country_inline, td.column-_ci_country_inline, th.column-_ci_hs_code_inline, td.column-_ci_hs_code_inline{display:none !important;}</style>';
 		}
 	}
 
 	/**
-	 * Render product fields in the Shipping product data tab.
+	 * Render product fields.
 	 */
 	public function render_fields() {
 		global $product_object;
 
 		$country = $product_object ? $product_object->get_meta( self::COUNTRY_META_KEY ) : '';
-		$weight  = $product_object ? $product_object->get_meta( self::WEIGHT_META_KEY ) : '';
+		$hs_code = $product_object ? $product_object->get_meta( self::HSCODE_META_KEY ) : '';
 
 		echo '<div class="options_group options_group--commercial-invoices">';
 
@@ -156,16 +177,10 @@ class CI_Product_Fields {
 
 		woocommerce_wp_text_input(
 			array(
-				'id'          => self::WEIGHT_META_KEY,
-				'label'       => 'Per-Unit Weight (kg)',
-				'desc_tip'    => true,
-				'description' => 'Per-unit weight used for commercial invoice calculation. Use if value differs to weight provided in Shipping tab.',
-				'type'        => 'number',
-				'value'       => $weight,
-				'custom_attributes' => array(
-					'step' => '0.001',
-					'min'  => '0',
-				),
+				'id'          => self::HSCODE_META_KEY,
+				'label'       => 'HS Code',
+				'type'        => 'text',
+				'value'       => $hs_code,
 			)
 		);
 
@@ -185,9 +200,11 @@ class CI_Product_Fields {
 			);
 		}
 
-		if ( isset( $_POST[ self::WEIGHT_META_KEY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$weight = wc_clean( wp_unslash( $_POST[ self::WEIGHT_META_KEY ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$product->update_meta_data( self::WEIGHT_META_KEY, '' === $weight ? '' : wc_format_decimal( $weight ) );
+		if ( isset( $_POST[ self::HSCODE_META_KEY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$product->update_meta_data(
+				self::HSCODE_META_KEY,
+				sanitize_text_field( wp_unslash( $_POST[ self::HSCODE_META_KEY ] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			);
 		}
 	}
 
@@ -200,7 +217,7 @@ class CI_Product_Fields {
 	 */
 	public function render_variation_fields( $loop, $variation_data, $variation ) {
 		$country = get_post_meta( $variation->ID, self::COUNTRY_META_KEY, true );
-		$weight  = get_post_meta( $variation->ID, self::WEIGHT_META_KEY, true );
+		$hs_code = get_post_meta( $variation->ID, self::HSCODE_META_KEY, true );
 		?>
 		<div class="form-row form-row-first">
 			<label for="variable_ci_country_<?php echo esc_attr( $loop ); ?>">
@@ -214,16 +231,12 @@ class CI_Product_Fields {
 			/>
 		</div>
 		<div class="form-row form-row-last">
-			<label for="variable_ci_weight_<?php echo esc_attr( $loop ); ?>">
-				<?php esc_html_e( 'Invoice Unit Weight (kg)', 'commercial-invoices' ); ?>
-			</label>
+			<label for="variable_ci_hs_code_<?php echo esc_attr( $loop ); ?>">HS Code</label>
 			<input
-				type="number"
-				step="0.001"
-				min="0"
-				id="variable_ci_weight_<?php echo esc_attr( $loop ); ?>"
-				name="variable_ci_weight[<?php echo esc_attr( $loop ); ?>]"
-				value="<?php echo esc_attr( $weight ); ?>"
+				type="text"
+				id="variable_ci_hs_code_<?php echo esc_attr( $loop ); ?>"
+				name="variable_ci_hs_code[<?php echo esc_attr( $loop ); ?>]"
+				value="<?php echo esc_attr( $hs_code ); ?>"
 			/>
 		</div>
 		<?php
@@ -244,9 +257,9 @@ class CI_Product_Fields {
 			);
 		}
 
-		if ( isset( $_POST['variable_ci_weight'][ $loop ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$weight = wc_clean( wp_unslash( $_POST['variable_ci_weight'][ $loop ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			update_post_meta( $variation_id, self::WEIGHT_META_KEY, '' === $weight ? '' : wc_format_decimal( $weight ) );
+		if ( isset( $_POST['variable_ci_hs_code'][ $loop ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$weight = wc_clean( wp_unslash( $_POST['variable_ci_hs_code'][ $loop ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			update_post_meta( $variation_id, self::HSCODE_META_KEY, '' === $weight ? '' : wc_format_decimal( $weight ) );
 		}
 	}
 }

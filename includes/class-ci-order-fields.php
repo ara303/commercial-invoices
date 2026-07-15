@@ -17,7 +17,6 @@ class CI_Order_Fields {
 	/**
 	 * Meta keys.
 	 */
-	const HS_CODE_META_KEY          = '_ci_hs_code';
 	const QUANTITY_META_KEY         = '_ci_quantity';
 	const NET_WEIGHT_META_KEY       = '_ci_net_weight';
 	const GROSS_WEIGHT_META_KEY     = '_ci_gross_weight';
@@ -79,24 +78,6 @@ class CI_Order_Fields {
 		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
 		?>
 		<p>
-			<label for="<?php echo esc_attr( self::HS_CODE_META_KEY ); ?>">
-				<strong><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></strong>
-			</label>
-			<input
-				type="text"
-				id="<?php echo esc_attr( self::HS_CODE_META_KEY ); ?>"
-				name="<?php echo esc_attr( self::HS_CODE_META_KEY ); ?>"
-				value="<?php echo esc_attr( $order->get_meta( self::HS_CODE_META_KEY ) ); ?>"
-				style="width:100%;"
-			/>
-		</p>
-		<p class="description">
-			<?php esc_html_e( 'Manual input. Used on the printed commercial invoice.', 'commercial-invoices' ); ?>
-		</p>
-
-		<hr />
-
-		<p>
 			<strong><?php esc_html_e( 'Quantity:', 'commercial-invoices' ); ?></strong>
 			<?php echo esc_html( wc_format_decimal( $quantity ) ); ?>
 		</p>
@@ -132,13 +113,6 @@ class CI_Order_Fields {
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
 			return;
-		}
-
-		if ( isset( $_POST[ self::HS_CODE_META_KEY ] ) ) {
-			$order->update_meta_data(
-				self::HS_CODE_META_KEY,
-				sanitize_text_field( wp_unslash( $_POST[ self::HS_CODE_META_KEY ] ) )
-			);
 		}
 
 		$this->calculate_and_update_order( $order );
@@ -227,18 +201,14 @@ class CI_Order_Fields {
 			}
 			
 			$product = $item->get_product();
+
 			if( ! $product ){
 				continue;
 			}
-			$unit_weight = $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
-			if( $unit_weight === '' ){
-				$unit_weight = (float) $product->get_weight();
-			} else {
-				$unit_weight = (float) $unit_weight;
-			}
 
-			$quantity     = (float) $item->get_quantity();
-			$net_weight  += $unit_weight * $quantity;
+			$unit_weight = (float) $product->get_weight();
+			$quantity    = (float) $item->get_quantity();
+			$net_weight += $unit_weight * $quantity;
 		}
 
 		return (float) apply_filters( 'ci_calculated_net_weight', wc_format_decimal( $net_weight ), $order );

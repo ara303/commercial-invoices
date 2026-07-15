@@ -21,7 +21,7 @@ class CI_Invoice_Printer {
 		add_action( 'add_meta_boxes', array( $this, 'add_print_meta_box' ), 30 );
 		add_filter( 'woocommerce_order_actions', array( $this, 'add_order_action' ) );
 		add_action( 'woocommerce_order_action_print_commercial_invoice', array( $this, 'handle_order_action' ) );
-		add_action( 'admin_post_ci_print_commercial_invoice', array( $this, 'render_print_page' ) );
+		add_action( 'admin_post_ci_generate', array( $this, 'render_print_page' ) );
 	}
 
 	/**
@@ -61,7 +61,6 @@ class CI_Invoice_Printer {
 				style="width:100%;text-align:center;"
 			>Print commercial invoice</a>
 		</p>
-		<p class="description"><b>Save changes</b> to the order (use the blue <em>Update</em> button to the right) in order for the invoice to be filled with the most up-to-date data.</p>
 		<?php
 	}
 
@@ -72,7 +71,7 @@ class CI_Invoice_Printer {
 	 * @return array
 	 */
 	public function add_order_action( $actions ) {
-		$actions['print_commercial_invoice'] = __( 'Print Commercial Invoice', 'commercial-invoices' );
+		$actions['print_commercial_invoice'] = __( 'Print commercial invoice', 'commercial-invoices' );
 		return $actions;
 	}
 
@@ -93,61 +92,75 @@ class CI_Invoice_Printer {
 	 * @return string
 	 */
 	public function get_print_url( $order_id ) {
-		return wp_nonce_url(
-			add_query_arg(
-				array(
-					'action'   => 'ci_print_commercial_invoice',
-					'order_id' => $order_id,
-				),
-				admin_url( 'admin-post.php' )
-			),
-			'ci_print_invoice_' . $order_id
+		$url = add_query_arg( [
+				'action' => 'ci_generate',
+				'id'     => $order_id,
+			],
+			admin_url( 'admin-post.php' )
 		);
+
+		return wp_nonce_url(
+			$url,
+			'ci_generate_' . $order_id,
+			'csrf'
+		);
+	}
+	
+	/**
+	 * Accepts price (ex: '1210.99') and formats it as '£1,210.99'.
+	 * 
+	 * Assumes GBP; not multi-currency aware.
+	 *
+	 * @param  int $price
+	 * @return string
+	 */
+	private function format_price( $price ){
+		return wc_price( $price, array( 'in_span' => false ) );
+	}
+	
+	/**
+	 * Accepts weight (ex: '12.003') and formats it as '12.003 kg'.
+	 * 
+	 * Unit given by `woocommerce_weight_unit` option, falls back to 'kg' if unset.
+	 *
+	 * @param  int $weight
+	 * @return string
+	 */
+	private function format_weight( $weight ){
+		return wc_format_decimal( $weight, 3 ) . ' ' . get_option( 'woocommerce_weight_unit', 'kg' );
 	}
 
 	/**
 	 * Render the printable commercial invoice.
 	 */
 	public function render_print_page() {
-		if ( ! isset( $_GET['order_id'] ) ) {
-			wp_die( esc_html__( 'No order specified.', 'commercial-invoices' ) );
-		}
+		if ( ! isset( $_GET['id'] ) ) return;
 
-		$order_id = absint( $_GET['order_id'] );
+		$order_id = absint( $_GET['id'] );
 
-		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ?? '' ) ), 'ci_print_invoice_' . $order_id ) ) {
-			wp_die( esc_html__( 'Security check failed.', 'commercial-invoices' ) );
-		}
-
-		if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'edit_shop_order', $order_id ) ) {
-			wp_die( esc_html__( 'You do not have permission to view this invoice.', 'commercial-invoices' ) );
-		}
+		if ( ! wp_verify_nonce( $_GET['csrf'], 'ci_generate_' . $order_id ) ) return;
+		if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'edit_shop_order', $order_id ) ) return;
 
 		$order = wc_get_order( $order_id );
-		if ( ! $order ) {
-			wp_die( esc_html__( 'Order not found.', 'commercial-invoices' ) );
-		}
+
+		if ( ! $order ) return;
 
 		// Ensure the latest automatic values are available.
 		$order_fields = new CI_Order_Fields();
 		$order_fields->recalculate_and_store( $order_id );
 		$order = wc_get_order( $order_id );
 
-		$hs_code          = $order->get_meta( CI_Order_Fields::HS_CODE_META_KEY );
-		$total_quantity   = $order->get_meta( CI_Order_Fields::QUANTITY_META_KEY );
-		$net_weight       = $order->get_meta( CI_Order_Fields::NET_WEIGHT_META_KEY );
-		$gross_weight     = $order->get_meta( CI_Order_Fields::GROSS_WEIGHT_META_KEY );
-		$declared_value   = $order->get_meta( CI_Order_Fields::DECLARED_VALUE_META_KEY );
-		$currency         = $order->get_currency();
-		$store_address    = $this->get_store_address();
-		$shipping_address = $this->get_formatted_shipping_address( $order );
-
+		$currency       = $order->get_currency();
+		$total_quantity = $order->get_meta( CI_Order_Fields::QUANTITY_META_KEY );
+		$net_weight     = $order->get_meta( CI_Order_Fields::NET_WEIGHT_META_KEY );
+		$gross_weight   = $order->get_meta( CI_Order_Fields::GROSS_WEIGHT_META_KEY );
+		$total_value    = $order->get_meta( CI_Order_Fields::DECLARED_VALUE_META_KEY );
 		?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
-	<title>Commercial invoice - order: <?php echo esc_html( $order->get_order_number() ); ?></title>
+	<title>Commercial invoice - order <?php echo esc_html( $order->get_order_number() ); ?></title>
 	<link rel="stylesheet" href="<?php echo esc_url( COMMERCIAL_INVOICES_PLUGIN_URL . 'assets/css/print.css' ); ?>" type="text/css" media="all">
 </head>
 <body>
@@ -157,107 +170,111 @@ class CI_Invoice_Printer {
 		</div>
 
 		<header class="ci-invoice-header">
-			<h1>Commercial invoice - order #<?php echo esc_html( $order->get_order_number() ); ?></h1>
-			<?php
-			printf(
-				'<h4 class="ci-invoice-date">Date of issue: %s</h4>',
-				esc_html( wc_format_datetime( $order->get_date_created() ) )
-			);
-			?>
+			<div class="header-left">
+				<h1>Commercial Invoice</h1>
+				<p>Order number: <?php echo absint( $order->get_order_number() ); ?>
+			</div>
+			<div class="header-right">
+				<?php printf( '<h3>Date of issue: %s</h3>', wc_format_datetime( $order->get_date_created() ) ); ?>
+				<?php printf( '<p>Currency: %s (%s)</p>', esc_html( $currency ), get_woocommerce_currency_symbol( $currency ) ); ?>
+			</div>
 		</header>
 
 		<section class="ci-addresses">
-			<div class="ci-address-box">
+			<div>
 				<h2>Exporter / Shipper</h2>
-				<?php echo wp_kses_post( $store_address ); ?>
+				<?php echo wp_kses_post( $this->get_store_address() ); ?>
 			</div>
-			<div class="ci-address-box">
+			<div class="spacer"></div>
+			<div>
 				<h2>Consignee / Importer</h2>
-				<?php echo wp_kses_post( $shipping_address ); ?>
+				<?php echo wp_kses_post( $this->get_destination_address( $order ) ); ?>
 			</div>
 		</section>
 
-		<table class="ci-summary">
-			<!-- <tr>
-				<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
-				<td><?php echo esc_html( $hs_code ); ?></td>
-			</tr> -->
-			<tr>
-				<th><?php esc_html_e( 'Total Quantity', 'commercial-invoices' ); ?></th>
-				<td><?php echo esc_html( $total_quantity ); ?></td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Total Net Weight', 'commercial-invoices' ); ?></th>
-				<td><?php echo esc_html( wc_format_decimal( $net_weight, 3 ) ); ?> kg</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Total Gross Weight', 'commercial-invoices' ); ?></th>
-				<td><?php echo esc_html( wc_format_decimal( $gross_weight, 3 ) ); ?> kg</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Total Value', 'commercial-invoices' ); ?></th>
-				<td><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></td>
-			</tr>
-		</table>
+		<dl class="ci-summary">
+			<?php
+			$summary = array(
+				array(
+					'name' => 'Reason for Export',
+					'value' => 'Goods Sold',
+				),
+				array(
+					'name' => 'Total Item Quantity',
+					'value' => $total_quantity,
+				),
+				array(
+					'name' => 'Total Net Weight',
+					'value' => $this->format_weight( $net_weight ),
+				),
+				array(
+					'name' => 'Total Gross Weight',
+					'value' => $this->format_weight( $gross_weight ),
+				),
+				array(
+					'name' => 'Total Value',
+					'value' => $this->format_price( $total_value ),
+				),
+			);
+
+			foreach( $summary as $item ){
+				printf( '<dt>%s</dt><dd>%s</dd>', esc_html( $item['name'] ), esc_html( $item['value'] ) );
+			}
+			?>
+		</dl>
 
 		<section class="ci-items">
 			<table>
 				<thead>
 					<tr>
-						<th><?php esc_html_e( 'Qty', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Description', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Country of Origin', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'HS Code', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Unit Value', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Unit Weight (kg)', 'commercial-invoices' ); ?></th>
-						<th><?php esc_html_e( 'Net Weight (kg)', 'commercial-invoices' ); ?></th>
-						<!-- <th><?php esc_html_e( 'Gross Weight (kg)', 'commercial-invoices' ); ?></th> -->
-						<th><?php esc_html_e( 'Line Value', 'commercial-invoices' ); ?></th>
+						<th>Qty</th>
+						<th>Description</th>
+						<th>Country of Origin</th>
+						<th>HS Code</th>
+						<th>Unit Value</th>
+						<th>Unit Weight</th>
+						<th>Net Weight</th>
+						<th>Line Value</th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php
-					$row      = 1;
+					$row           = 1;
 					$running_net   = 0;
-					$running_gross = 0;
 
 					foreach ( $order->get_items() as $item ) {
 						if ( ! $item instanceof WC_Order_Item_Product ) {
 							continue;
 						}
 
-						$product      = $item->get_product();
-						$qty          = (float) $item->get_quantity();
+						$product = $item->get_product();
 
-						// Prefer 'Per-Unit Weight' meta, fallback to WC weight, then cast to float.
-						$unit_weight = $product->get_meta( CI_Product_Fields::WEIGHT_META_KEY );
-						if ( $unit_weight === '' ) {
-							$unit_weight = (float) $product->get_weight();
-						} else {
-							$unit_weight = (float) $unit_weight;
+						if( ! $product ){
+							continue;
 						}
 
-						$item_net     = $unit_weight * $qty;
-						// Apply same gross-weight ratio used at order level.
-						$gross_ratio  = $gross_weight > 0 && $net_weight > 0 ? $gross_weight / $net_weight : 1;
-						$item_gross   = $item_net * $gross_ratio;
-						$line_total   = (float) $item->get_total();
-						$unit_price   = $qty > 0 ? $line_total / $qty : 0;
-						$country      = $product->get_meta( CI_Product_Fields::COUNTRY_META_KEY );
+						$qty         = (float) $item->get_quantity();
+						$country     = $product->get_meta( CI_Product_Fields::COUNTRY_META_KEY );
+						$hs_code     = $product->get_meta( CI_Product_Fields::HSCODE_META_KEY );
+
+						$line_total  = (float) $item->get_total();
+						$unit_price  = $qty > 0 ? $line_total / $qty : 0;
+						$unit_weight = (float) $product->get_weight();
+						$item_net    = $unit_weight * $qty;
+						$gross_ratio = $gross_weight > 0 && $net_weight > 0 ? $gross_weight / $net_weight : 1;
+						$item_gross  = $item_net * $gross_ratio;
 
 						$running_net   += $item_net;
-						$running_gross += $item_gross;
 						?>
 						<tr>
-							<td><?php echo esc_html( wc_format_decimal( $qty ) ); ?></td>
+							<td><?php echo absint( $qty ); ?></td>
 							<td><?php echo esc_html( $item->get_name() ); ?></td>
 							<td><?php echo esc_html( $country ); ?></td>
 							<td><?php echo esc_html( $hs_code ); ?></td>
-							<td><?php echo wp_kses_post( wc_price( $unit_price, array( 'currency' => $currency ) ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $unit_weight, 2 ) ); ?></td>
-							<td><?php echo esc_html( wc_format_decimal( $item_net, 2 ) ); ?></td>
-							<!-- <td><?php echo esc_html( wc_format_decimal( $item_gross, 2 ) ); ?></td> -->
-							<td><?php echo wp_kses_post( wc_price( $line_total, array( 'currency' => $currency ) ) ); ?></td>
+							<td><?php echo esc_html( $this->format_price( $unit_price ) ); ?></td>
+							<td><?php echo esc_html( $this->format_weight( $unit_weight ) ); ?></td>
+							<td><?php echo esc_html( $this->format_weight( $item_net ) ); ?></td>
+							<td><?php echo esc_html( $this->format_price( $line_total ) ); ?></td>
 						</tr>
 						<?php
 						++$row;
@@ -266,10 +283,10 @@ class CI_Invoice_Printer {
 				</tbody>
 				<tfoot>
 					<tr>
-						<th><?php echo esc_html( wc_format_decimal( $total_quantity ) ); ?></th>
+						<th><?php echo absint( $total_quantity ); ?></th>
 						<th colspan="5">&nbsp;</th>
-						<th><?php echo esc_html( wc_format_decimal( $running_gross, 2 ) ); ?> kg</th>
-						<th><?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $currency ) ) ); ?></th>
+						<th><?php echo esc_html( $this->format_weight( $running_net ) ); ?></th>
+						<th><?php echo esc_html( $this->format_price( $total_value ) ); ?></th>
 					</tr>
 				</tfoot>
 			</table>
@@ -277,16 +294,15 @@ class CI_Invoice_Printer {
 
 		<footer class="ci-invoice-footer">
 			<div class="ci-signature-line">
-				<p><?php esc_html_e( 'Signature: _______________________________', 'commercial-invoices' ); ?></p>
-				<p><?php esc_html_e( 'Date shipped: _______________________________', 'commercial-invoices' ); ?></p>
+				<p>Signature: _______________________________</p>
+				<p>Date shipped: _______________________________</p>
 			</div>
 		</footer>
 	</div>
 	<script>
-		window.addEventListener( 'load', function() {
-			// Auto-open the browser print dialog.
-			// window.print();
-		} );
+		// window.addEventListener( 'load', function() {
+		// 	window.print();
+		// } );
 	</script>
 </body>
 </html>
@@ -316,6 +332,7 @@ class CI_Invoice_Printer {
 			get_option( 'woocommerce_store_address_2' ),
 			$city_row,
 			$country_name,
+			'EORI No.: GB841996780000'
 		);
 
 		$address = array_filter( $address );
@@ -328,7 +345,7 @@ class CI_Invoice_Printer {
 	 * @param WC_Order $order Order object.
 	 * @return string
 	 */
-	private function get_formatted_shipping_address( $order ) {
+	private function get_destination_address( $order ) {
 		$address = $order->get_formatted_shipping_address();
 		if ( empty( $address ) ) {
 			$address = $order->get_formatted_billing_address();
