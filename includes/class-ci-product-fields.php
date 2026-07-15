@@ -66,13 +66,13 @@ class CI_Product_Fields {
 	}
 
 	public function save_quick_edit_fields( $post_id, $post ){
-		if( ! empty( $_REQUEST['_country_of_origin'] ) ){
+		if( isset( $_REQUEST['_country_of_origin'] ) ){
 			$country = sanitize_text_field( wp_unslash( $_REQUEST['_country_of_origin'] ) );
 			
 			update_post_meta( $post_id, self::COUNTRY_META_KEY, $country );
 		}
 
-		if( ! empty( $_REQUEST['_hs_code'] ) ){
+		if( isset( $_REQUEST['_hs_code'] ) ){
 			$hs_code = sanitize_text_field( wp_unslash( $_REQUEST['_hs_code'] ) );
 			
 			update_post_meta( $post_id, self::HSCODE_META_KEY, $hs_code );
@@ -259,7 +259,11 @@ class CI_Product_Fields {
 
 		if ( isset( $_POST['variable_ci_hs_code'][ $loop ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			$weight = wc_clean( wp_unslash( $_POST['variable_ci_hs_code'][ $loop ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			update_post_meta( $variation_id, self::HSCODE_META_KEY, '' === $weight ? '' : wc_format_decimal( $weight ) );
+			update_post_meta(
+				$variation_id,
+				self::HSCODE_META_KEY,
+				sanitize_text_field( $weight )
+			);
 		}
 	}
 }

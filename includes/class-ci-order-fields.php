@@ -36,7 +36,6 @@ class CI_Order_Fields {
 	 */
 	public function __construct() {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ), 30 );
-		add_action( 'woocommerce_process_shop_order_meta', array( $this, 'save_order_fields' ), 10, 2 );
 		add_action( 'woocommerce_saved_order_items', array( $this, 'recalculate_on_items_change' ), 10, 2 );
 	}
 
@@ -49,7 +48,7 @@ class CI_Order_Fields {
 		foreach ( $screens as $screen ) {
 			add_meta_box(
 				'ci_order_invoice_data',
-				__( 'Commercial Invoice Data', 'commercial-invoices' ),
+				'Commercial Invoice Data',
 				array( $this, 'render_meta_box' ),
 				$screen,
 				'normal',
@@ -65,57 +64,44 @@ class CI_Order_Fields {
 		$order = Commercial_Invoices::get_current_order();
 
 		if ( ! $order ) {
-			echo '<p>' . esc_html__( 'Order not found.', 'commercial-invoices' ) . '</p>';
+			echo '<p>Order not found.</p>';
 			return;
 		}
 
 		// Display live calculated values without persisting on every page load.
-		$quantity       = $this->calculate_quantity( $order );
-		$net_weight     = $this->calculate_net_weight( $order );
-		$gross_weight   = $this->calculate_gross_weight( $order, $net_weight );
-		$declared_value = $this->calculate_declared_value( $order );
-
-		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
+		$quantity     = $this->calculate_quantity( $order );
+		$net_weight   = $this->calculate_net_weight( $order );
+		$gross_weight = $this->calculate_gross_weight( $order, $net_weight );
+		$total_value  = $this->calculate_declared_value( $order );
 		?>
-		<p>
-			<strong><?php esc_html_e( 'Quantity:', 'commercial-invoices' ); ?></strong>
-			<?php echo esc_html( wc_format_decimal( $quantity ) ); ?>
-		</p>
-		<p>
-			<strong><?php esc_html_e( 'Net Weight (kg):', 'commercial-invoices' ); ?></strong>
-			<?php echo esc_html( wc_format_decimal( $net_weight, 3 ) ); ?>
-		</p>
-		<p>
-			<strong><?php esc_html_e( 'Gross Weight (kg):', 'commercial-invoices' ); ?></strong>
-			<?php echo esc_html( wc_format_decimal( $gross_weight, 3 ) ); ?>
-		</p>
-		<p>
-			<strong><?php esc_html_e( 'Declared Value:', 'commercial-invoices' ); ?></strong>
-			<?php echo wp_kses_post( wc_price( $declared_value, array( 'currency' => $order->get_currency() ) ) ); ?>
-		</p>
-		<p class="description">
-			<?php esc_html_e( 'These values are calculated automatically from the order data and updated when the order is saved.', 'commercial-invoices' ); ?>
-		</p>
+
+		<dl class="ci-order-summary">
+			<?php
+			$summary = array(
+				'Total Quantity'           => wc_format_decimal( $quantity ),
+				'Net Weight'               => wc_format_decimal( $net_weight, 3 ) . ' kg',
+				'Gross Weight (Net + 10%)' => wc_format_decimal( $gross_weight, 3 ) . ' kg',
+				'Total Value'              => wc_price( $total_value, array( 'currency' => $order->get_currency(), 'in_span' => false ) ),
+			);
+			
+			foreach( $summary as $key => $value ){
+				printf( '<dt>%s:</dt><dd>%s</dd>', esc_html( $key ), esc_html( $value ) );
+			}
+			?>
+		</dl>
+		<style>
+			.ci-order-summary {
+				display: grid;
+				grid-template-columns: fit-content(200px) 1fr;
+				column-gap: 1em;
+			}
+
+			.ci-order-summary dd {
+				margin: 0;
+			}
+		</style>
 		<?php
-	}
-
-	/**
-	 * Save the HS Code and recalculate automatic values when an order is saved.
-	 *
-	 * @param int     $order_id Order ID.
-	 * @param WP_Post $post     Post object (may be null on HPOS).
-	 */
-	public function save_order_fields( $order_id, $post = null ) {
-		if ( ! isset( $_POST[ self::NONCE_NAME ] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ self::NONCE_NAME ] ) ), self::NONCE_ACTION ) ) {
-			return;
-		}
-
-		$order = wc_get_order( $order_id );
-		if ( ! $order ) {
-			return;
-		}
-
-		$this->calculate_and_update_order( $order );
+		do_action( 'commercial_invoice_meta_box_after' );
 	}
 
 	/**
