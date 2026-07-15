@@ -104,10 +104,12 @@ class CI_Order_Fields {
 	/**
 	 * Calculate the order data.
 	 *
-	 * @param WC_Order $order Order object.
+	 * @param int $order_id Order ID.
 	 */
-	public function calculate_order_data( $order ) {
-		if ( $this->is_saving ) {
+	public function calculate_order_data( $order_id ) {
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order || $this->is_saving ) {
 			return;
 		}
 
