@@ -121,20 +121,17 @@ class CI_Invoice_Printer {
 		if ( ! wp_verify_nonce( $_GET['csrf'], 'ci_generate_' . $order_id ) ) return;
 		if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'edit_shop_order', $order_id ) ) return;
 
-		$order = wc_get_order( $order_id );
-
-		if ( ! $order ) return;
-
-		// Ensure the latest automatic values are available.
 		$order_fields = new CI_Order_Fields();
-		$order_fields->recalculate_and_store( $order_id );
+		$order_fields->calculate_order_data( $order_id );
 		$order = wc_get_order( $order_id );
+
+		if ( ! $order instanceof WC_Order ) return;
 
 		$currency       = $order->get_currency();
 		$total_quantity = $order->get_meta( CI_Order_Fields::QUANTITY_META_KEY );
+		$total_value    = $order->get_meta( CI_Order_Fields::TOTAL_VALUE_META_KEY );
 		$net_weight     = $order->get_meta( CI_Order_Fields::NET_WEIGHT_META_KEY );
 		$gross_weight   = $order->get_meta( CI_Order_Fields::GROSS_WEIGHT_META_KEY );
-		$total_value    = $order->get_meta( CI_Order_Fields::DECLARED_VALUE_META_KEY );
 		?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -206,7 +203,7 @@ class CI_Invoice_Printer {
 				</thead>
 				<tbody>
 					<?php
-					$row         = 1;
+					$row          = 1;
 					$total_weight = 0;
 
 					foreach ( $order->get_items() as $item ) {

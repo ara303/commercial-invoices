@@ -9,20 +9,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Adds and saves HS Code (manual) and automatic commercial-invoice values on orders.
- */
 class CI_Order_Fields {
 
 	/**
 	 * Meta keys.
 	 */
-	const QUANTITY_META_KEY         = '_ci_quantity';
-	const NET_WEIGHT_META_KEY       = '_ci_net_weight';
-	const GROSS_WEIGHT_META_KEY     = '_ci_gross_weight';
-	const DECLARED_VALUE_META_KEY   = '_ci_declared_value';
-	const NONCE_ACTION              = 'ci_save_order_fields';
-	const NONCE_NAME                = 'ci_order_fields_nonce';
+	const QUANTITY_META_KEY     = '_ci_quantity';
+	const TOTAL_VALUE_META_KEY  = '_ci_total_value';
+	const NET_WEIGHT_META_KEY   = '_ci_net_weight';
+	const GROSS_WEIGHT_META_KEY = '_ci_gross_weight';
 
 	/**
 	 * Flag to prevent recursive saves.
@@ -36,7 +31,7 @@ class CI_Order_Fields {
 	 */
 	public function __construct() {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ), 30 );
-		add_action( 'woocommerce_saved_order_items', array( $this, 'recalculate_on_items_change' ), 10, 2 );
+		add_action( 'woocommerce_saved_order_items', array( $this, 'calculate_order_data' ), 10, 2 );
 	}
 
 	/**
@@ -47,8 +42,8 @@ class CI_Order_Fields {
 
 		foreach ( $screens as $screen ) {
 			add_meta_box(
-				'ci_order_invoice_data',
-				'Commercial Invoice Data',
+				'ci_order_invoices',
+				'Commercial Invoices',
 				array( $this, 'render_meta_box' ),
 				$screen,
 				'normal',
@@ -68,20 +63,22 @@ class CI_Order_Fields {
 			return;
 		}
 
-		// Display live calculated values without persisting on every page load.
 		$quantity     = $this->calculate_quantity( $order );
+		$total_value  = $this->calculate_total_value( $order );
 		$net_weight   = $this->calculate_net_weight( $order );
 		$gross_weight = $this->calculate_gross_weight( $order, $net_weight );
-		$total_value  = $this->calculate_declared_value( $order );
 		?>
 
 		<dl class="ci-order-summary">
 			<?php
+			$packaging_allowance = (float) apply_filters( 'ci_packaging_allowance_percentage', 10, $order );
+			
 			$summary = array(
-				'Total Quantity'           => wc_format_decimal( $quantity ),
-				'Net Weight'               => wc_format_decimal( $net_weight, 3 ) . ' kg',
-				'Gross Weight (Net + 10%)' => wc_format_decimal( $gross_weight, 3 ) . ' kg',
-				'Total Value'              => wc_price( $total_value, array( 'currency' => $order->get_currency(), 'in_span' => false ) ),
+				'Qty'            => wc_format_decimal( $quantity ),
+				'Value'          => wc_price( $total_value, array( 'currency' => $order->get_currency(), 'in_span' => false ) ),
+				'Weight (net)'   => wc_format_decimal( $net_weight, 3 ) . ' kg',
+				'Packaging %'    => $packaging_allowance,
+				'Weight (gross)' => wc_format_decimal( $gross_weight, 3 ) . ' kg',
 			);
 			
 			foreach( $summary as $key => $value ){
@@ -105,50 +102,26 @@ class CI_Order_Fields {
 	}
 
 	/**
-	 * Recalculate automatic values after order items are changed.
-	 *
-	 * @param int    $order_id Order ID.
-	 * @param string $action   Action performed.
-	 */
-	public function recalculate_on_items_change( $order_id, $action ) {
-		$this->recalculate_and_store( $order_id );
-	}
-
-	/**
-	 * Recalculate and store the automatic commercial-invoice values.
-	 *
-	 * @param int $order_id Order ID.
-	 */
-	public function recalculate_and_store( $order_id ) {
-		$order = wc_get_order( $order_id );
-		if ( ! $order ) {
-			return;
-		}
-
-		$this->calculate_and_update_order( $order );
-	}
-
-	/**
-	 * Calculate automatic values and persist them on the given order object.
+	 * Calculate the order data.
 	 *
 	 * @param WC_Order $order Order object.
 	 */
-	private function calculate_and_update_order( $order ) {
+	public function calculate_order_data( $order ) {
 		if ( $this->is_saving ) {
 			return;
 		}
 
 		$this->is_saving = true;
 
-		$quantity       = $this->calculate_quantity( $order );
-		$net_weight     = $this->calculate_net_weight( $order );
-		$gross_weight   = $this->calculate_gross_weight( $order, $net_weight );
-		$declared_value = $this->calculate_declared_value( $order );
+		$quantity     = $this->calculate_quantity( $order );
+		$total_value  = $this->calculate_total_value( $order );
+		$net_weight   = $this->calculate_net_weight( $order );
+		$gross_weight = $this->calculate_gross_weight( $order, $net_weight );
 
 		$order->update_meta_data( self::QUANTITY_META_KEY, $quantity );
+		$order->update_meta_data( self::TOTAL_VALUE_META_KEY, $total_value );
 		$order->update_meta_data( self::NET_WEIGHT_META_KEY, $net_weight );
 		$order->update_meta_data( self::GROSS_WEIGHT_META_KEY, $gross_weight );
-		$order->update_meta_data( self::DECLARED_VALUE_META_KEY, $declared_value );
 		$order->save();
 
 		$this->is_saving = false;
@@ -170,6 +143,21 @@ class CI_Order_Fields {
 		}
 
 		return (float) apply_filters( 'ci_calculated_quantity', $quantity, $order );
+	}
+
+	/**
+	 * Calculate total value.
+	 *
+	 * Defaults to the goods value (subtotal after discounts). Override via the
+	 * `ci_calculated_total_value` filter.
+	 *
+	 * @param WC_Order $order Order object.
+	 * @return float
+	 */
+	public function calculate_total_value( $order ) {
+		$total_value = $order->get_subtotal() - $order->get_discount_total();
+
+		return (float) apply_filters( 'ci_calculated_total_value', wc_format_decimal( $total_value ), $order );
 	}
 
 	/**
@@ -211,23 +199,9 @@ class CI_Order_Fields {
 	 * @return float
 	 */
 	public function calculate_gross_weight( $order, $net_weight ) {
-		$default_gross = $net_weight * 1.1; // 10% packaging allowance.
+		$packaging_allowance = (float) apply_filters( 'ci_packaging_allowance_percentage', 10, $order );
+		$default_gross       = $net_weight * ( 1 + $packaging_allowance / 100 );
 
 		return (float) apply_filters( 'ci_calculated_gross_weight', wc_format_decimal( $default_gross ), $net_weight, $order );
-	}
-
-	/**
-	 * Calculate declared value.
-	 *
-	 * Defaults to the goods value (subtotal after discounts). Override via the
-	 * `ci_calculated_declared_value` filter.
-	 *
-	 * @param WC_Order $order Order object.
-	 * @return float
-	 */
-	public function calculate_declared_value( $order ) {
-		$declared_value = $order->get_subtotal() - $order->get_discount_total();
-
-		return (float) apply_filters( 'ci_calculated_declared_value', wc_format_decimal( $declared_value ), $order );
 	}
 }
