@@ -13,13 +13,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Adds and saves the Country of Origin and HS Code fields on products.
  */
 class CI_Product_Fields {
-
-	/**
-	 * Meta keys.
-	 */
-	const COUNTRY_META_KEY = '_ci_country_of_origin';
-	const HSCODE_META_KEY  = '_ci_hs_code';
-
 	/**
 	 * Constructor.
 	 */
@@ -40,42 +33,62 @@ class CI_Product_Fields {
 		add_action( 'woocommerce_product_bulk_edit_start', array( $this, 'render_quick_edit_fields' ) );
 
 		// Hidden list-table column that carries the meta value into the row's DOM so quick edit can read it.
-		add_filter( 'manage_product_posts_columns', array( $this, 'add_inline_column' ), 20 );
-		add_action( 'manage_product_posts_custom_column', array( $this, 'render_inline_column' ), 10, 2 );
-		add_action( 'admin_head', array( $this, 'hide_inline_column' ) );
+		add_filter( 'manage_product_posts_columns', array( $this, 'add_columns' ), 20 );
+		add_action( 'manage_product_posts_custom_column', array( $this, 'render_columns' ), 10, 2 );
+		add_action( 'admin_head', array( $this, 'hide_columns' ) );
+	}
+
+	/**
+	 * Product fields to create inputs for and handle saving of.
+	 * 
+	 * Note: Manually replicated for displaying per line item.
+	 * @see class-ci-invoice-printer.php
+	 */
+	public function product_fields(){
+		return array(
+			'ci_country_of_origin' => array( 
+				'name' => 'County of Origin',
+				'name_short' => 'C.o.O.',
+				'type' => 'text',
+				'placeholder' => 'e.g., China',
+			),
+			'ci_hs_code' => array(
+				'name' => 'HS Code',
+				'name_short' => 'HS Code',
+				'type' => 'text',
+			),
+		);
 	}
 
 	public function render_quick_edit_fields(){
 		?>
 		<div class="fields--commercial-invoices">
-			<label>
-				<span class="title">C.o.O.</span>
-				<span class="input-text-wrap">
-					<input type="text" name="_country_of_origin" class="text country_of_origin" placeholder="e.g., China" value="">
-				</span>
-			</label>
-			<label>
-				<span class="title">HS Code</span>
-				<span class="input-text-wrap">
-					<input type="text" name="_hs_code" class="text hs_code" placeholder="e.g., 08081000" value="">
-				</span>
-			</label>
+			<?php
+			$product_fields = $this->product_fields();
+
+			foreach( $product_fields as $id => $fields ): 
+				$placeholder = $fields['placeholder'] ?? ''; ?>
+				<label>
+					<span class="title"><?= $fields['name_short']; ?></span>
+					<span class="input-text-wrap">
+						<input type="text" name="<?= $id; ?>" class="text commercial_invoice_field" placeholder="<?= $placeholder; ?>" value="">
+					</span>
+				</label>
+			<?php endforeach; ?>
 			<br class="clear" />
 		</div>
 		<?php
 	}
 
 	public function save_quick_edit_fields( $post_id, $post ){
-		if( isset( $_REQUEST['_country_of_origin'] ) ){
-			$country = sanitize_text_field( wp_unslash( $_REQUEST['_country_of_origin'] ) );
-			
-			update_post_meta( $post_id, self::COUNTRY_META_KEY, $country );
-		}
+		$product_fields = $this->product_fields();
 
-		if( isset( $_REQUEST['_hs_code'] ) ){
-			$hs_code = sanitize_text_field( wp_unslash( $_REQUEST['_hs_code'] ) );
-			
-			update_post_meta( $post_id, self::HSCODE_META_KEY, $hs_code );
+		foreach( $product_fields as $id => $fields ){
+			if( isset( $_REQUEST[$id] ) ){
+				$value = sanitize_text_field( wp_unslash( $_REQUEST[$id] ) );
+
+				update_post_meta( $post_id, $id, $value );
+			}
 		}
 	}
 
@@ -102,15 +115,14 @@ class CI_Product_Fields {
 						return;
 					}
 
-					var countryValue = $( '#post-' + post_id ).find( '.column-_ci_country_inline' ).text();
-					if ( countryValue ) {
-						$( '.inline-edit-row input[name="_country_of_origin"]' ).val( countryValue );
-					}
+					<?php
+					$product_fields = $this->product_fields();
 
-					var hscodeValue = $( '#post-' + post_id ).find( '.column-_ci_hs_code_inline' ).text();
-					if ( hscodeValue ) {
-						$( '.inline-edit-row input[name="_hs_code"]' ).val( hscodeValue );
+					foreach( $product_fields as $id => $fields ){
+						echo( "var value_$id = \$( '#post-' + post_id ).find( '.column-$id' ).text();\r\n" );
+						echo( "if( value_$id ) \$( '.commercial_invoice_field[name=\"$id\"]' ).val( value_$id );\r\n" );
 					}
+					?>
 				};
 			});
 		</script>
@@ -123,9 +135,13 @@ class CI_Product_Fields {
 	 * @param array $columns Existing columns.
 	 * @return array
 	 */
-	public function add_inline_column( $columns ) {
-		$columns['_ci_country_inline'] = 'Country of Origin';
-		$columns['_ci_hs_code_inline'] = 'HS Code';
+	public function add_columns( $columns ) {
+		$product_fields = $this->product_fields();
+
+		foreach( $product_fields as $id => $fields ){
+			$columns[$id] = $fields['name'];
+		}
+
 		return $columns;
 	}
 
@@ -135,23 +151,28 @@ class CI_Product_Fields {
 	 * @param string $column  Column key.
 	 * @param int    $post_id Post ID.
 	 */
-	public function render_inline_column( $column, $post_id ) {
-		if ( '_ci_country_inline' === $column ) {
-			echo esc_html( get_post_meta( $post_id, self::COUNTRY_META_KEY, true ) );
-		}
+	public function render_columns( $column, $post_id ) {
+		$product_fields = $this->product_fields();
 
-		if ( '_ci_hs_code_inline' === $column ) {
-			echo esc_html( get_post_meta( $post_id, self::HSCODE_META_KEY, true ) );
+		foreach( $product_fields as $id => $fields ){
+			if ( $id === $column ) {
+				echo esc_html( get_post_meta( $post_id, $id, true ) );
+			}
 		}
 	}
 
 	/**
 	 * Hide the helper column on the product list screen.
 	 */
-	public function hide_inline_column() {
+	public function hide_columns() {
 		$screen = get_current_screen();
+		
 		if ( $screen && 'edit-product' === $screen->id ) {
-			echo '<style>th.column-_ci_country_inline, td.column-_ci_country_inline, th.column-_ci_hs_code_inline, td.column-_ci_hs_code_inline{display:none !important;}</style>';
+			$product_fields = $this->product_fields();
+
+			foreach( $product_fields as $id => $fields ){
+				echo( "<style>th.column-$id, td.column-$id { display: none !important; }</style>\r\n" );
+			}
 		}
 	}
 
@@ -161,28 +182,22 @@ class CI_Product_Fields {
 	public function render_fields() {
 		global $product_object;
 
-		$country = $product_object ? $product_object->get_meta( self::COUNTRY_META_KEY ) : '';
-		$hs_code = $product_object ? $product_object->get_meta( self::HSCODE_META_KEY ) : '';
-
 		echo '<div class="options_group options_group--commercial-invoices">';
 
-		woocommerce_wp_text_input(
-			array(
-				'id'          => self::COUNTRY_META_KEY,
-				'label'       => 'Country of Origin',
-				'type'        => 'text',
-				'value'       => $country,
-			)
-		);
+		$product_fields = $this->product_fields();
 
-		woocommerce_wp_text_input(
-			array(
-				'id'          => self::HSCODE_META_KEY,
-				'label'       => 'HS Code',
-				'type'        => 'text',
-				'value'       => $hs_code,
-			)
-		);
+		foreach( $product_fields as $id => $fields ){
+			$placeholder = $fields['placeholder'] ?? '';
+			woocommerce_wp_text_input(
+				array(
+					'id'          => $id,
+					'label'       => $fields['name'],
+					'type'        => $fields['type'],
+					'value'       => $product_object->get_meta( $id ),
+					'placeholder' => $placeholder,
+				)
+			);
+		}
 
 		echo '</div>';
 	}
@@ -193,18 +208,12 @@ class CI_Product_Fields {
 	 * @param WC_Product $product Product object.
 	 */
 	public function save_fields( $product ) {
-		if ( isset( $_POST[ self::COUNTRY_META_KEY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$product->update_meta_data(
-				self::COUNTRY_META_KEY,
-				sanitize_text_field( wp_unslash( $_POST[ self::COUNTRY_META_KEY ] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			);
-		}
+		$product_fields = $this->product_fields();
 
-		if ( isset( $_POST[ self::HSCODE_META_KEY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$product->update_meta_data(
-				self::HSCODE_META_KEY,
-				sanitize_text_field( wp_unslash( $_POST[ self::HSCODE_META_KEY ] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			);
+		foreach( $product_fields as $id => $fields ){
+			if( isset( $_POST[$id] ) ){
+				$product->update_meta_data( $id, sanitize_text_field( wp_unslash( $_POST[$id] ) ) );
+			}
 		}
 	}
 
@@ -216,30 +225,22 @@ class CI_Product_Fields {
 	 * @param WP_Post    $variation      Variation post object.
 	 */
 	public function render_variation_fields( $loop, $variation_data, $variation ) {
-		$country = get_post_meta( $variation->ID, self::COUNTRY_META_KEY, true );
-		$hs_code = get_post_meta( $variation->ID, self::HSCODE_META_KEY, true );
-		?>
-		<div class="form-row form-row-first">
-			<label for="variable_ci_country_<?php echo esc_attr( $loop ); ?>">
-				<?php esc_html_e( 'Country of Origin', 'commercial-invoices' ); ?>
-			</label>
-			<input
-				type="text"
-				id="variable_ci_country_<?php echo esc_attr( $loop ); ?>"
-				name="variable_ci_country[<?php echo esc_attr( $loop ); ?>]"
-				value="<?php echo esc_attr( $country ); ?>"
-			/>
-		</div>
-		<div class="form-row form-row-last">
-			<label for="variable_ci_hs_code_<?php echo esc_attr( $loop ); ?>">HS Code</label>
-			<input
-				type="text"
-				id="variable_ci_hs_code_<?php echo esc_attr( $loop ); ?>"
-				name="variable_ci_hs_code[<?php echo esc_attr( $loop ); ?>]"
-				value="<?php echo esc_attr( $hs_code ); ?>"
-			/>
-		</div>
-		<?php
+		$product_fields = $this->product_fields();
+
+		echo '<div>';
+
+		foreach( $product_fields as $id => $fields ){
+			$row_id = "variation_{$id}_{$loop}";
+			$name   = "variation_{$id}[{$loop}]";
+			$value  = get_post_meta( $variation->ID, $id, true ); ?>
+			<p class="form-row form-row-full">
+				<label for="<?= $row_id; ?>"><?= $fields['name']; ?></label>
+				<input type="<?= $fields['type']; ?>" id="<?= $row_id; ?>" name="<?= $name; ?>" value="<?= $value; ?>">
+			</p>
+			<?php 
+		}
+
+		echo '</div>';
 	}
 
 	/**
@@ -249,21 +250,14 @@ class CI_Product_Fields {
 	 * @param int $loop         Variation loop index.
 	 */
 	public function save_variation_fields( $variation_id, $loop ) {
-		if ( isset( $_POST['variable_ci_country'][ $loop ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			update_post_meta(
-				$variation_id,
-				self::COUNTRY_META_KEY,
-				sanitize_text_field( wp_unslash( $_POST['variable_ci_country'][ $loop ] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			);
-		}
+		$product_fields = $this->product_fields();
 
-		if ( isset( $_POST['variable_ci_hs_code'][ $loop ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$weight = wc_clean( wp_unslash( $_POST['variable_ci_hs_code'][ $loop ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			update_post_meta(
-				$variation_id,
-				self::HSCODE_META_KEY,
-				sanitize_text_field( $weight )
-			);
+		foreach( $product_fields as $id => $fields ){
+			$field_name = "variation_{$id}";
+
+			if( isset( $_POST[$field_name][$loop] ) ){
+				update_post_meta( $variation_id, $id, sanitize_text_field( wp_unslash( $_POST[$field_name][$loop] ) ) );
+			}
 		}
 	}
 }

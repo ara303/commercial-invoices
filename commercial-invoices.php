@@ -1,19 +1,12 @@
 <?php
 /**
  * Plugin Name: Commercial Invoices
- *
- * @package Commercial_Invoices
+ * Requires Plugins: woocommerce
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit; 
 
-// Define constants.
 define( 'COMMERCIAL_INVOICES_VERSION', '1.0.0' );
-define( 'COMMERCIAL_INVOICES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'COMMERCIAL_INVOICES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'COMMERCIAL_INVOICES_PLUGIN_FILE', __FILE__ );
 
 /**
  * Main plugin class.
@@ -42,50 +35,38 @@ class Commercial_Invoices {
 	/**
 	 * Constructor.
 	 */
-	private function __construct() {
-		$this->includes();
-		$this->init_hooks();
+	public function __construct() {
+		$this->load_files();
+		$this->load_hooks();
 	}
 
 	/**
-	 * Load required files.
+	 * Load files.
 	 */
-	private function includes() {
-		require_once COMMERCIAL_INVOICES_PLUGIN_DIR . 'includes/class-ci-product-fields.php';
-		require_once COMMERCIAL_INVOICES_PLUGIN_DIR . 'includes/class-ci-order-fields.php';
-		require_once COMMERCIAL_INVOICES_PLUGIN_DIR . 'includes/class-ci-invoice-printer.php';
+	private function load_files() {
+		$plugin_dir = plugin_dir_path( __FILE__ );
+		require_once $plugin_dir . 'includes/class-ci-product-fields.php';
+		require_once $plugin_dir . 'includes/class-ci-order-fields.php';
+		require_once $plugin_dir . 'includes/class-ci-invoice-printer.php';
 	}
 
 	/**
-	 * Hook into WordPress / WooCommerce.
+	 * Load hooks.
 	 */
-	private function init_hooks() {
-		add_action( 'init', array( $this, 'load_textdomain' ) );
-		add_action( 'admin_init', array( $this, 'check_woocommerce' ) );
+	private function load_hooks() {
+		add_action( 'init', array( $this, 'init' ) );
 		add_action( 'before_woocommerce_init', array( $this, 'declare_hpos_compatibility' ) );
-
-		// Initialise feature classes.
-		add_action( 'plugins_loaded', array( $this, 'load_features' ) );
 	}
 
 	/**
 	 * Load plugin textdomain.
 	 */
-	public function load_textdomain() {
+	public function init() {
 		load_plugin_textdomain(
 			'commercial-invoices',
 			false,
-			dirname( plugin_basename( COMMERCIAL_INVOICES_PLUGIN_FILE ) ) . '/languages'
+			dirname( plugin_basename( __FILE__ ) ) . '/languages'
 		);
-	}
-
-	/**
-	 * Load feature classes once plugins are loaded.
-	 */
-	public function load_features() {
-		if ( ! class_exists( 'WooCommerce' ) ) {
-			return;
-		}
 
 		new CI_Product_Fields();
 		new CI_Order_Fields();
@@ -93,35 +74,22 @@ class Commercial_Invoices {
 	}
 
 	/**
-	 * Show an admin notice if WooCommerce is not active.
-	 */
-	public function check_woocommerce() {
-		if ( ! class_exists( 'WooCommerce' ) ) {
-			add_action( 'admin_notices', array( $this, 'woocommerce_missing_notice' ) );
-		}
-	}
-
-	/**
-	 * Admin notice text.
-	 */
-	public function woocommerce_missing_notice() {
-		printf(
-			'<div class="notice notice-error"><p>%s</p></div>',
-			esc_html__( 'Commercial Invoices requires WooCommerce to be installed and active.', 'commercial-invoices' )
-		);
-	}
-
-	/**
 	 * Declare compatibility with WooCommerce HPOS.
 	 */
 	public function declare_hpos_compatibility() {
 		if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
-			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', COMMERCIAL_INVOICES_PLUGIN_FILE, true );
+			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
 		}
 	}
 
 	/**
-	 * Get the current order object from the edit screen globals.
+	 * -----------------
+	 * Utility functions
+	 * -----------------
+	 */
+
+	/**
+	 * Use edit screen globals to retrieve current order.
 	 *
 	 * @return WC_Order|false
 	 */
@@ -137,6 +105,29 @@ class Commercial_Invoices {
 		}
 
 		return false;
+	}
+	
+	/**
+	 * Accepts price (ex: '1210.99') and formats it with thousands-separators and currency symbol.
+	 *
+	 * @param  int|float $price
+	 * @param  string    $currency
+	 * @return string
+	 */
+	public static function format_price( $price, $currency = 'GBP' ){
+		return wc_price( $price, array( 'in_span' => false, 'currency' => $currency ) );
+	}
+	
+	/**
+	 * Accepts weight (ex: '12.003') and formats it (ex: '12.003 kg').
+	 * 
+	 * Unit taken from `woocommerce_weight_unit` option, or 'kg' if unset.
+	 *
+	 * @param  int $weight
+	 * @return string
+	 */
+	public static function format_weight( $weight ){
+		return wc_format_decimal( $weight, 3 ) . ' ' . get_option( 'woocommerce_weight_unit', 'kg' );
 	}
 }
 
