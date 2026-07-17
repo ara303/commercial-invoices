@@ -1,13 +1,5 @@
 <?php
-/**
- * Commercial invoice printing.
- *
- * @package Commercial_Invoices
- */
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
  * Adds a print button to orders and renders the printable commercial invoice.
@@ -72,10 +64,10 @@ class CI_Invoice_Printer {
 	 * @return string
 	 */
 	public function get_print_url( $order_id ) {
-		$url = add_query_arg( [
+		$url = add_query_arg( array(
 				'action' => 'ci_generate',
 				'id'     => $order_id,
-			],
+			),
 			admin_url( 'admin-post.php' )
 		);
 
@@ -109,9 +101,6 @@ class CI_Invoice_Printer {
 		$total_value    = $order->get_meta( CI_Order_Fields::TOTAL_VALUE_META_KEY );
 		$net_weight     = $order->get_meta( CI_Order_Fields::NET_WEIGHT_META_KEY );
 		$gross_weight   = $order->get_meta( CI_Order_Fields::GROSS_WEIGHT_META_KEY );
-
-		// Get formatting functions format_price(), format_weight() from Commercial_Invoices class.
-		$commercial_invoices = new Commercial_Invoices();
 		?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -129,7 +118,7 @@ class CI_Invoice_Printer {
 		<header class="ci-invoice-header">
 			<div class="header-left">
 				<h1>Commercial Invoice</h1>
-				<p>Order number: <?php echo esc_html( $order_number ); ?>
+				<p>Order number: <?php echo esc_html( $order_number ); ?></p>
 			</div>
 			<div class="header-right">
 				<h3>Issue date: <?php echo wc_format_datetime( $order->get_date_created(), 'd M y' ); ?></h3>
@@ -156,9 +145,9 @@ class CI_Invoice_Printer {
 			$summary = array(
 				'Reason for Export'   => 'Goods Sold',
 				'Total Item Quantity' => $total_quantity,
-				'Total Net Weight'    => $commercial_invoices->format_weight( $net_weight ),
-				'Total Gross Weight'  => $commercial_invoices->format_weight( $gross_weight ),
-				'Total Value'         => $commercial_invoices->format_price( $total_value, $currency ),
+				'Total Net Weight'    => Commercial_Invoices::format_weight( $net_weight ),
+				'Total Gross Weight'  => Commercial_Invoices::format_weight( $gross_weight ),
+				'Total Value'         => Commercial_Invoices::format_price( $total_value, $currency ),
 			);
 			
 			foreach( $summary as $key => $value ){
@@ -197,7 +186,7 @@ class CI_Invoice_Printer {
 							continue;
 						}
 
-						$qty           = (float) $item->get_quantity();
+						$qty           = $item->get_quantity();
 						$country       = $this->get_meta( $product, 'ci_country_of_origin' );
 						$hs_code       = $this->get_meta( $product, 'ci_hs_code' );
 						$total         = (float) $item->get_total();
@@ -211,10 +200,10 @@ class CI_Invoice_Printer {
 							<td><?php echo esc_html( $item->get_name() ); ?></td>
 							<td><?php echo esc_html( $country ); ?></td>
 							<td><?php echo esc_html( $hs_code ); ?></td>
-							<td><?php echo esc_html( $commercial_invoices->format_price( $price, $currency ) ); ?></td>
-							<td><?php echo esc_html( $commercial_invoices->format_weight( $weight ) ); ?></td>
-							<td><?php echo esc_html( $commercial_invoices->format_weight( $line_weight ) ); ?></td>
-							<td><?php echo esc_html( $commercial_invoices->format_price( $total, $currency ) ); ?></td>
+							<td><?php echo esc_html( Commercial_Invoices::format_price( $price, $currency ) ); ?></td>
+							<td><?php echo esc_html( Commercial_Invoices::format_weight( $weight ) ); ?></td>
+							<td><?php echo esc_html( Commercial_Invoices::format_weight( $line_weight ) ); ?></td>
+							<td><?php echo esc_html( Commercial_Invoices::format_price( $total, $currency ) ); ?></td>
 						</tr>
 						<?php
 						++$row;
@@ -225,8 +214,8 @@ class CI_Invoice_Printer {
 					<tr>
 						<th><?php echo absint( $total_quantity ); ?></th>
 						<th colspan="5">&nbsp;</th>
-						<th><?php echo esc_html( $commercial_invoices->format_weight( $total_weight ) ); ?></th>
-						<th><?php echo esc_html( $commercial_invoices->format_price( $total_value, $currency ) ); ?></th>
+						<th><?php echo esc_html( Commercial_Invoices::format_weight( $total_weight ) ); ?></th>
+						<th><?php echo esc_html( Commercial_Invoices::format_price( $total_value, $currency ) ); ?></th>
 					</tr>
 				</tfoot>
 			</table>
@@ -260,6 +249,7 @@ class CI_Invoice_Printer {
 	private function get_meta( $product, $key ) {
 		if ( $product instanceof WC_Product_Variation ) {
 			$meta = $product->get_meta( $key );
+
 			if ( '' !== $meta ) {
 				return $meta;
 			}
@@ -298,7 +288,7 @@ class CI_Invoice_Printer {
 			$country_name,
 		);
 
-		return implode( '<br>', $address );
+		return implode( '<br>', array_filter( $address ) );
 	}
 
 	/**

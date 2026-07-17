@@ -1,16 +1,7 @@
 <?php
-/**
- * Order fields for Commercial Invoices.
- *
- * @package Commercial_Invoices
- */
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class CI_Order_Fields {
-
 	/**
 	 * Meta keys.
 	 */

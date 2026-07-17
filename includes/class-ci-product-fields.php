@@ -1,13 +1,5 @@
 <?php
-/**
- * Product fields for Commercial Invoices.
- *
- * @package Commercial_Invoices
- */
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
  * Adds and saves the Country of Origin and HS Code fields on products.
@@ -32,32 +24,36 @@ class CI_Product_Fields {
 		// Bulk edit support.
 		add_action( 'woocommerce_product_bulk_edit_start', array( $this, 'render_quick_edit_fields' ) );
 
-		// Hidden list-table column that carries the meta value into the row's DOM so quick edit can read it.
+		// Add (and hide) columns because that's the WP Core way to populate quick edit values.
 		add_filter( 'manage_product_posts_columns', array( $this, 'add_columns' ), 20 );
 		add_action( 'manage_product_posts_custom_column', array( $this, 'render_columns' ), 10, 2 );
 		add_action( 'admin_head', array( $this, 'hide_columns' ) );
 	}
 
 	/**
-	 * Product fields to create inputs for and handle saving of.
+	 * Build base associative array of product fields to create and save for all edit means.
 	 * 
-	 * Note: Manually replicated for displaying per line item.
-	 * @see class-ci-invoice-printer.php
+	 * Use filter `ci_product_fields` with ID equal to array (must contain label and label_short).
 	 */
-	public function product_fields(){
-		return array(
+	public static function product_fields(){
+		$fields = array(
 			'ci_country_of_origin' => array( 
-				'name' => 'County of Origin',
-				'name_short' => 'C.o.O.',
-				'type' => 'text',
+				'label'       => 'Country of Origin',
+				'label_short' => 'C.o.O.',
 				'placeholder' => 'e.g., China',
 			),
 			'ci_hs_code' => array(
-				'name' => 'HS Code',
-				'name_short' => 'HS Code',
-				'type' => 'text',
+				'label'       => 'HS Code',
+				'label_short' => 'HS Code',
 			),
 		);
+
+		/**
+		 * Filters the product fields used by Commercial Invoices.
+		 *
+		 * @param array $fields Associative array of field IDs to field configs.
+		 */
+		return apply_filters( 'ci_product_fields', $fields );
 	}
 
 	public function render_quick_edit_fields(){
@@ -69,7 +65,7 @@ class CI_Product_Fields {
 			foreach( $product_fields as $id => $fields ): 
 				$placeholder = $fields['placeholder'] ?? ''; ?>
 				<label>
-					<span class="title"><?= $fields['name_short']; ?></span>
+					<span class="title"><?= $fields['label_short']; ?></span>
 					<span class="input-text-wrap">
 						<input type="text" name="<?= $id; ?>" class="text commercial_invoice_field" placeholder="<?= $placeholder; ?>" value="">
 					</span>
@@ -97,32 +93,34 @@ class CI_Product_Fields {
 		if ( 'product' !== $typenow ) {
 			return;
 		}
+
+		$field_ids = array_keys( $this->product_fields() );
 		?>
 		<script type="text/javascript">
 			jQuery( function( $ ) {
+				var fieldIds = <?php echo wp_json_encode( $field_ids ); ?>;
+
 				var $orig_edit = inlineEditPost.edit;
 				inlineEditPost.edit = function( id ) {
 					// Run the original WP quick edit first so the row is rendered.
 					$orig_edit.apply( this, arguments );
 
-					var post_id = 0;
-					if ( 'object' === typeof id ) {
-						post_id = parseInt( inlineEditPost.getId( id ), 10 );
-					} else {
-						post_id = parseInt( id, 10 );
-					}
+					var post_id = 'object' === typeof id
+						? parseInt( inlineEditPost.getId( id ), 10 )
+						: parseInt( id, 10 );
+
 					if ( ! post_id ) {
 						return;
 					}
 
-					<?php
-					$product_fields = $this->product_fields();
+					var $row = $( '#post-' + post_id );
 
-					foreach( $product_fields as $id => $fields ){
-						echo( "var value_$id = \$( '#post-' + post_id ).find( '.column-$id' ).text();\r\n" );
-						echo( "if( value_$id ) \$( '.commercial_invoice_field[name=\"$id\"]' ).val( value_$id );\r\n" );
-					}
-					?>
+					fieldIds.forEach( function( fieldId ) {
+						var value = $row.find( '.column-' + fieldId ).text();
+						if ( value ) {
+							$( '.commercial_invoice_field[name="' + fieldId + '"]' ).val( value );
+						}
+					} );
 				};
 			});
 		</script>
@@ -139,7 +137,7 @@ class CI_Product_Fields {
 		$product_fields = $this->product_fields();
 
 		foreach( $product_fields as $id => $fields ){
-			$columns[$id] = $fields['name'];
+			$columns[$id] = $fields['label'];
 		}
 
 		return $columns;
@@ -187,16 +185,12 @@ class CI_Product_Fields {
 		$product_fields = $this->product_fields();
 
 		foreach( $product_fields as $id => $fields ){
-			$placeholder = $fields['placeholder'] ?? '';
-			woocommerce_wp_text_input(
-				array(
-					'id'          => $id,
-					'label'       => $fields['name'],
-					'type'        => $fields['type'],
-					'value'       => $product_object->get_meta( $id ),
-					'placeholder' => $placeholder,
-				)
-			);
+			woocommerce_wp_text_input( array(
+				'id'          => $id,
+				'label'       => $fields['label'],
+				'value'       => $product_object->get_meta( $id ),
+				'placeholder' => $fields['placeholder'] ?? '',
+			) );
 		}
 
 		echo '</div>';
@@ -227,20 +221,16 @@ class CI_Product_Fields {
 	public function render_variation_fields( $loop, $variation_data, $variation ) {
 		$product_fields = $this->product_fields();
 
-		echo '<div>';
-
 		foreach( $product_fields as $id => $fields ){
-			$row_id = "variation_{$id}_{$loop}";
-			$name   = "variation_{$id}[{$loop}]";
-			$value  = get_post_meta( $variation->ID, $id, true ); ?>
-			<p class="form-row form-row-full">
-				<label for="<?= $row_id; ?>"><?= $fields['name']; ?></label>
-				<input type="<?= $fields['type']; ?>" id="<?= $row_id; ?>" name="<?= $name; ?>" value="<?= $value; ?>">
-			</p>
-			<?php 
+			woocommerce_wp_text_input( array(
+				'id'            => "variation_{$id}[{$loop}]",
+				'label'         => $fields['label'],
+				'wrapper_class' => 'form-row form-row-full',
+				'value'         => get_post_meta( $variation->ID, $id, true ),
+				'placeholder'   => $fields['placeholder'] ?? '',
+				'description'   => 'Leave blank to inherit value from parent product.'
+			) );
 		}
-
-		echo '</div>';
 	}
 
 	/**

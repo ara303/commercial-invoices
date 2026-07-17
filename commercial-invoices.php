@@ -3,7 +3,6 @@
  * Plugin Name: Commercial Invoices
  * Requires Plugins: woocommerce
  */
-
 if ( ! defined( 'ABSPATH' ) ) exit; 
 
 define( 'COMMERCIAL_INVOICES_VERSION', '1.0.0' );
