@@ -1,16 +1,7 @@
 <?php
-/**
- * Order fields for Commercial Invoices.
- *
- * @package Commercial_Invoices
- */
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class CI_Order_Fields {
-
 	/**
 	 * Meta keys.
 	 */
@@ -56,7 +47,8 @@ class CI_Order_Fields {
 	 * Render the meta box.
 	 */
 	public function render_meta_box() {
-		$order = Commercial_Invoices::get_current_order();
+		$commercial_invoices = new Commercial_Invoices();
+		$order               = $commercial_invoices::get_current_order();
 
 		if ( ! $order ) {
 			echo '<p>Order not found.</p>';
@@ -67,6 +59,7 @@ class CI_Order_Fields {
 		$total_value  = $this->calculate_total_value( $order );
 		$net_weight   = $this->calculate_net_weight( $order );
 		$gross_weight = $this->calculate_gross_weight( $order, $net_weight );
+		$currency     = $order->get_currency();
 		?>
 
 		<dl class="ci-order-summary">
@@ -74,11 +67,11 @@ class CI_Order_Fields {
 			$packaging_allowance = (float) apply_filters( 'ci_packaging_allowance_percentage', 10, $order );
 			
 			$summary = array(
-				'Qty'            => wc_format_decimal( $quantity ),
-				'Value'          => wc_price( $total_value, array( 'currency' => $order->get_currency(), 'in_span' => false ) ),
-				'Weight (net)'   => wc_format_decimal( $net_weight, 3 ) . ' kg',
-				'Packaging %'    => $packaging_allowance,
-				'Weight (gross)' => wc_format_decimal( $gross_weight, 3 ) . ' kg',
+				'Qty'            => absint( $quantity ),
+				'Value'          => $commercial_invoices->format_price( $total_value, $currency ),
+				'Weight (net)'   => $commercial_invoices->format_weight( $net_weight ),
+				'Packaging %'    => floatval( $packaging_allowance ),
+				'Weight (gross)' => $commercial_invoices->format_weight( $gross_weight ),
 			);
 			
 			foreach( $summary as $key => $value ){
