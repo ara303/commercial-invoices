@@ -33,7 +33,7 @@ class CI_Product_Fields {
 	/**
 	 * Build base associative array of product fields to create and save for all edit means.
 	 * 
-	 * Use filter `ci_product_fields` with ID equal to array (must contain label and label_short).
+	 * Use filter `ci_product_fields` with key for ID and value an array.
 	 */
 	public static function product_fields(){
 		$fields = array(
@@ -48,11 +48,6 @@ class CI_Product_Fields {
 			),
 		);
 
-		/**
-		 * Filters the product fields used by Commercial Invoices.
-		 *
-		 * @param array $fields Associative array of field IDs to field configs.
-		 */
 		return apply_filters( 'ci_product_fields', $fields );
 	}
 
@@ -65,9 +60,9 @@ class CI_Product_Fields {
 			foreach( $product_fields as $id => $fields ): 
 				$placeholder = $fields['placeholder'] ?? ''; ?>
 				<label>
-					<span class="title"><?= $fields['label_short']; ?></span>
+					<span class="title"><?php echo esc_html( $fields['label_short'] ); ?></span>
 					<span class="input-text-wrap">
-						<input type="text" name="<?= $id; ?>" class="text commercial_invoice_field" placeholder="<?= $placeholder; ?>" value="">
+						<input type="text" name="<?php echo esc_attr( $id ); ?>" class="text commercial_invoice_field" placeholder="<?php echo esc_attr( $placeholder ); ?>" value="">
 					</span>
 				</label>
 			<?php endforeach; ?>
